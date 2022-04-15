@@ -1,0 +1,10 @@
+## Interface: 20400
+## Title: Lib: FadestormLib
+## Notes: Library of useful Lua functions/collections
+## Credits: Fadestorm - Earthfury
+## X-Website: https://github.com/KevinTyrrell
+## X-Category: Library
+## X-License: Public Domain
+
+LibStub\LibStub.lua
+FadestormLib.lua
