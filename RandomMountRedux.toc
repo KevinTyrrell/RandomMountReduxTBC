@@ -1,0 +1,10 @@
+## Interface: 20501
+## Title: RandomMountRedux
+## Notes: Addon that allows for random mount summoning in Classic TBC.
+## Version: 1.0
+## Author: Kevin Tyrrell
+## Credits: Slumberlust (Author)
+## DefaultState: Enabled
+## LoadOnDemand: 0
+
+RandomMountRedux.xml
