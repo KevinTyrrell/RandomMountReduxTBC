@@ -22,13 +22,14 @@ local FSL = LibStub:NewLibrary(MAJOR, MINOR)
 if not FSL then return end
 
 -- Imported standard library functions.
-local upper = string.upper
+local upper, lower = string.upper, string.lower
 
 -- Forward declarations for circular function dependencies
 FSL.Type = {
     TABLE = setmetatable({}, { __call = function(_, x) return x end }),
     STRING = setmetatable({}, { __call = function(_, x) return x end })
 }
+local Error = {}
 
 -- Helper function -- Basis for read-only tables
 local function readOnlyMetaTable(private)
@@ -111,7 +112,7 @@ function FSL:Enum(values, metamethods)
     }
 
     if metamethods ~= nil then -- Overwrite default metamethods, if any provided by the user
-        for k, v in pairs(Type.TABLE(metamethods)) do
+        for k, v in pairs(FSL.Type.TABLE(metamethods)) do
             DEFAULT_META_TABLE[k] = v end end
     for k, v in pairs(DEFAULT_META_TABLE) do
         if mt[k] == nil then mt[k] = v end end -- Reject metamethods that are not overridable
@@ -129,4 +130,53 @@ function FSL:Enum(values, metamethods)
 
     return FSL:readOnlyTable(enum_class), FSL:readOnlyTable(enum_map)
 end
+
+--[[
+-- Type Enum
+--
+-- Types of the Lua programming language
+--
+-- __call meta-method
+-- Type-checks a value, ensuring it to be of the same type as the Type enum value
+-- @param Value [?] Value to be type-checked
+]]--
+FSL.Type = (function()
+    local Type, private = FSL:Enum({ "NIL", "STRING", "BOOLEAN","NUMBER",
+                                     "FUNCTION", "USERDATA", "THREAD", "TABLE" },
+            {
+                __call = function(tbl, value)
+                    if type(value) ~= tbl.type then
+                        FSL:throw(ADDON_NAME, Error.TYPE_MISMATCH,
+                                "Received " .. type(value) .. ", Expected: " .. tbl.name) end
+                    return value
+                end
+            })
+    for i = 1, getmetatable(Type)() do
+        local t = Type[i]
+        private[t].type = lower(t.name)
+    end
+
+    return Type
+end)()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
