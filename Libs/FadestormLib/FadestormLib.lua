@@ -30,23 +30,42 @@ FSL.Type = {
     STRING = setmetatable({}, { __call = function(_, x) return x end })
 }
 
-function FSL:readOnlyTable(private, meta)
-    -- Initialize optional parameter
-    private = private == nil and {} or FSL.Type.TABLE(private)
-    local mt = {
-        __metatable = false, -- Forbid access of this metatable through 'getmetatable'
+-- Helper function -- Basis for read-only tables
+local function readOnlyMetaTable(private)
+    return {
+        -- Reject any mutations to the read-only table
         __newindex = function()
             FSL:throw(ADDON_NAME, Error.ILLEGAL_MODIFICATION, "Ready-only table cannot be modified")
         end,
-        __index = function(_, index) return private[index] end
+        -- Redirect lookups to the private table without exposing the table itself
+        __index = function(_, index) return private[index] end,
+        -- Prevent access to the metatable but work-around for Lua 5.1 no '__len' metamethod
+        __metatable = function() return #private end,
     }
-    if meta ~= nil then -- User wants additional meta-methods included
-        for k, v in pairs(FSL.Type.TABLE(meta)) do
+end
+
+--[[
+-- Constructs a read-only view into a private table
+--
+-- Read-only tables cannot be modified.
+-- An error will be thrown upon __newindex being called.
+-- Read-only tables do not support the length operator '#' (Lua 5.1 limitation)
+-- Calling 'getmetatable(...)' will retrieve the length of the underlying table.
+--
+-- Meta-methods may be provided in order to further customize the read-only table.
+-- '__metatable', '__index', and '__newindex' meta-methods are ignored.
+--
+-- @param private [Table] Map of fields
+-- @param metamethods [Table] (optional) Metamethods to be included into the table
+]]--
+function FSL:readOnlyTable(private, metamethods)
+    local mt = readOnlyMetaTable(FSL.Type.TABLE(private))
+    if metamethods ~= nil then -- User wants additional meta-methods included
+        for k, v in pairs(FSL.Type.TABLE(metamethods)) do
             if mt[k] ~= nil then -- Existing meta-methods cannot be overwritten
                 mt[k] = v end end
     end
-
-    return setmetatable({}, mt), private
+    return setmetatable({}, mt)
 end
 
 
@@ -56,7 +75,15 @@ end
 -- Enum values have the following fields:
 -- * name: name of the enum value (uppercase)
 -- * ordinal: numerical index of the value, starting from 1
--- * __tostring: equivalent to 'name'
+--
+-- Enum values implement the following metamethods:
+-- * __tostring (equivalent to 'name')
+-- * __lt & __lte (comparable)
+-- * __call (equivalent to 'ordinal')
+--
+-- Enum values can be referenced by 'Class.MY_ENUM_VALUE' format,
+-- or by ordinal, e.g. 'Class[1]' for the enum value with ordinal '1'.
+-- Length of the enum class can be requested with 'getmetatable(Class)'.
 --
 -- Enum values are read-only, but additional fields can be
 -- defined using the private field table return value.
@@ -65,42 +92,41 @@ end
 -- @return [Table] List of Enum values (field 'length' used instead of '#')
 -- @return [Table] Map of enum values to their private field table (used to define new fields)
 ]]--
-function FSL:Enum(values)
-    -- Translates public tables into their respective private tables
-    local pub_prv = {}
-    local enum = {}
+function FSL:Enum(values, metamethods)
+    local enum_map = {} -- Maps read-only enum instances to their private fields
+    local enum_class = {} -- Private fields of the enum class
 
-    -- In order for table values to be compared, they must share the same metatable
-    local mt = {
+    --[[
+    -- All enum elements must share the same metatable so that they are comparable.
+    -- The metatable's __call must lookup the corresponding private table.
+    --]]
+    local mt = readOnlyMetaTable()
+    mt.__index = function(tbl, index) return enum_map[tbl][index] end -- Redirect lookups
+
+    local DEFAULT_META_TABLE = { -- Default metamethods for enums
         __lt = function(t1, t2) return t1.ordinal < t2.ordinal end,
         __lte = function(t1, t2) return t1.ordinal <= t2.ordinal end,
         __call = function(tbl) return tbl.ordinal end,
         __tostring = function(tbl) return tbl.name end,
-        __metatable = false,
-        __newindex = function()
-            FSL:throw(ADDON_NAME, Error.ILLEGAL_MODIFICATION, "Ready-only table cannot be modified")
-        end,
-        __index = function(tbl, index)
-            return pub_prv[tbl][index] -- Access the private table for this enum
-        end
     }
 
-    -- Ensure there are no duplicate enum names
-    for i, v in ipairs(FSL.Type.TABLE(values)) do
-        enum[upper(FSL.Type.STRING(v))] = i end
-    for name, ordinal in pairs(enum) do
-        pub_prv[setmetatable({}, mt)] = {
+    if metamethods ~= nil then -- Overwrite default metamethods, if any provided by the user
+        for k, v in pairs(Type.TABLE(metamethods)) do
+            DEFAULT_META_TABLE[k] = v end end
+    for k, v in pairs(DEFAULT_META_TABLE) do
+        if mt[k] == nil then mt[k] = v end end -- Reject metamethods that are not overridable
+
+    for ordinal, name in ipairs(FSL.Type.TABLE(values)) do
+        name = upper(FSL.Type.STRING(name))
+        instance = setmetatable({}, mt)
+        enum_map[instance] = { -- Associate the instance with the enum's private fields
             name = name,
             ordinal = ordinal
         }
+        enum_class[name] = instance
+        enum_class[instance.ordinal] = instance -- Workaround for lack of 'pairs' support
     end
-    enum = {} -- Prepare enum table
-    for k, v in pairs(pub_prv) do
-        enum[v.ordinal] = k end
-    enum.length = #enum -- Lua 5.1 workaround for missing meta-method '__len'
-    enum = FSL:readOnlyTable(enum)
-    return enum, FSL:readOnlyTable({}, {
-        __index = pub_prv -- Provide access to underlying enum private fields
-    })
+
+    return FSL:readOnlyTable(enum_class), FSL:readOnlyTable(enum_map)
 end
 
