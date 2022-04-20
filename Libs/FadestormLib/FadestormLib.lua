@@ -155,11 +155,13 @@ end
 -- @return [?] value
 ]]--
 Type = (function()
+    local function match(tbl, value) return tbl.type == type(value) end
+
     local Type, private = Enum({ "NIL", "STRING", "BOOLEAN","NUMBER",
                                  "FUNCTION", "USERDATA", "THREAD", "TABLE" },
             {
                 __call = function(tbl, value)
-                    if type(value) ~= tbl.type then
+                    if not match(tbl, value) then
                         Error.TYPE_MISMATCH(ADDON_NAME,
                                 "Received " .. type(value) .. ", Expected: " .. tbl.type) end
                     return value
@@ -168,6 +170,8 @@ Type = (function()
     for i = 1, getmetatable(Type)() do
         local t = Type[i]
         private[t].type = lower(t.name)
+        private[t].match = function(type, value)
+            return match(Type.TABLE(type), value) end
     end
 
     return Type
@@ -214,7 +218,7 @@ end)()
 function filter(iterable, callback)
     Type.FUNCTION(callback)
     -- Tables must use 'next' while iterators can use themselves.
-    local iterator = type(iterable) == "table" and next or Type.FUNCTION(iterable)
+    local iterator = Type.TABLE:match(iterable) and next or  Type.FUNCTION(iterable)
     local key -- Iterator key parameter cannot be trusted due to key re-mappings
     return function()
         local value
@@ -234,7 +238,7 @@ end
 function map(iterable, callback)
     Type.FUNCTION(callback)
     -- Tables must use 'next' while iterators can use themselves.
-    local iterator = type(iterable) == "table" and next or Type.FUNCTION(iterable)
+    local iterator = Type.TABLE:match(iterable) and next or Type.FUNCTION(iterable)
     local key -- Iterator key parameter cannot be trusted due to key re-mappings
     return function()
         local value
@@ -243,6 +247,7 @@ function map(iterable, callback)
     end, iterable, nil
 end
 
+--[[
 -- Merges two streams together
 --
 -- The resulting combined stream will have the same
@@ -257,10 +262,10 @@ end
 ]]--
 function merge(iter1, iter2, callback)
     Type.FUNCTION(callback)
-    local i1 = type(iter1) == "table" and next or Type.FUNCTION(iter1)
-    local i2 = type(iter2) == "table" and next or Type.FUNCTION(iter2)
+    local i1 = Type.TABLE:match(iter1) and next or Type.FUNCTION(iter1)
+    local i2 = Type.TABLE:match(iter2) and next or Type.FUNCTION(iter2)
     local k1, k2 -- Iterator key parameter cannot be trusted due to key re-mappings
-    return function(iter)
+    return function()
         local v1, v2
         k1, v1 = i1(iter1, k1)
         k2, v2 = i2(iter2, k2)
