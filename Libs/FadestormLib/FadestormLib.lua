@@ -20,16 +20,24 @@ local ADDON_NAME = "FadestormLib"
 local MAJOR, MINOR = ADDON_NAME .. "-1", 0
 local FSL = LibStub:NewLibrary(MAJOR, MINOR)
 if not FSL then return end
+local _G, fenv = _G, getfenv(1) -- Maintain reference to global table
+setfenv(1, setmetatable({}, {
+    __newindex = FSL, -- Global assignments go to FSL table instead
+    __index = function(_, index)
+        local v = FSL[index] -- Redirect lookups to FSL
+        return v ~= nil and v or _G[index] -- Redirect to global table if FSL has no such index
+    end
+}))
 
 -- Imported standard library functions.
 local upper, lower = string.upper, string.lower
 
 -- Forward declarations for circular function dependencies
-FSL.Type = {
+Type = {
     TABLE = setmetatable({}, { __call = function(_, x) return x end }),
     STRING = setmetatable({}, { __call = function(_, x) return x end })
 }
-FSL.Error = {
+Error = {
     UNSUPPORTED_OPERATION = setmetatable({}, { __call = function() end }),
     TYPE_MISMATCH = setmetatable({}, { __call = function() end }),
 }
@@ -39,7 +47,7 @@ local function readOnlyMetaTable(private)
     return {
         -- Reject any mutations to the read-only table
         __newindex = function()
-            FSL.Error.UNSUPPORTED_OPERATION(ADDON_NAME, "Ready-only table cannot be modified")
+            Error.UNSUPPORTED_OPERATION(ADDON_NAME, "Ready-only table cannot be modified")
         end,
         -- Redirect lookups to the private table without exposing the table itself
         __index = function(_, index) return private[index] end,
@@ -62,10 +70,10 @@ end
 -- @param private [Table] Map of fields
 -- @param metamethods [Table] (optional) Metamethods to be included into the table
 ]]--
-function FSL:readOnlyTable(private, metamethods)
-    local mt = readOnlyMetaTable(FSL.Type.TABLE(private))
+function readOnlyTable(private, metamethods)
+    local mt = readOnlyMetaTable(Type.TABLE(private))
     if metamethods ~= nil then -- User wants additional meta-methods included
-        for k, v in pairs(FSL.Type.TABLE(metamethods)) do
+        for k, v in pairs(Type.TABLE(metamethods)) do
             if mt[k] ~= nil then -- Existing meta-methods cannot be overwritten
                 mt[k] = v end end
     end
@@ -96,7 +104,7 @@ end
 -- @return [Table] List of Enum values (field 'length' used instead of '#')
 -- @return [Table] Map of enum values to their private field table (used to define new fields)
 ]]--
-function FSL:Enum(values, metamethods)
+function Enum(values, metamethods)
     local enum_map = {} -- Maps read-only enum instances to their private fields
     local enum_class = {} -- Private fields of the enum class
 
@@ -115,13 +123,13 @@ function FSL:Enum(values, metamethods)
     }
 
     if metamethods ~= nil then -- Overwrite default metamethods, if any provided by the user
-        for k, v in pairs(FSL.Type.TABLE(metamethods)) do
+        for k, v in pairs(Type.TABLE(metamethods)) do
             DEFAULT_META_TABLE[k] = v end end
     for k, v in pairs(DEFAULT_META_TABLE) do
         if mt[k] == nil then mt[k] = v end end -- Reject metamethods that are not overridable
 
-    for ordinal, name in ipairs(FSL.Type.TABLE(values)) do
-        name = upper(FSL.Type.STRING(name))
+    for ordinal, name in ipairs(Type.TABLE(values)) do
+        name = upper(Type.STRING(name))
         instance = setmetatable({}, mt)
         enum_map[instance] = { -- Associate the instance with the enum's private fields
             name = name,
@@ -131,7 +139,7 @@ function FSL:Enum(values, metamethods)
         enum_class[instance.ordinal] = instance -- Workaround for lack of 'pairs' support
     end
 
-    return FSL:readOnlyTable(enum_class), FSL:readOnlyTable(enum_map)
+    return readOnlyTable(enum_class), readOnlyTable(enum_map)
 end
 
 --[[
@@ -147,13 +155,13 @@ end
 -- @param value [?] Value to be type-checked
 -- @return [?] value
 ]]--
-FSL.Type = (function()
-    local Type, private = FSL:Enum({ "NIL", "STRING", "BOOLEAN","NUMBER",
-                                     "FUNCTION", "USERDATA", "THREAD", "TABLE" },
+Type = (function()
+    local Type, private = Enum({ "NIL", "STRING", "BOOLEAN","NUMBER",
+                                 "FUNCTION", "USERDATA", "THREAD", "TABLE" },
             {
                 __call = function(tbl, value)
                     if type(value) ~= tbl.type then
-                        FSL.Error.TYPE_MISMATCH(ADDON_NAME,
+                        Error.TYPE_MISMATCH(ADDON_NAME,
                                 "Received " .. type(value) .. ", Expected: " .. tbl.type) end
                     return value
                 end
@@ -180,13 +188,13 @@ end)()
 -- @param source [string] Source name of the error (addon, weak aura, macro, etc)
 -- @param msg [string] Msg providing details of the error
 ]]--
-FSL.Error = (function()
+Error = (function()
     -- /run print("this is \124cFFECBC2Ared and \124cFF00FF00this is green\124r back to red\124r back to white")
     local crt, src_color, msg_color = "\124r", "\124cFFECBC2A", "\124cFF00FF00"
-    return FSL:Enum({ "UNSUPPORTED_OPERATION", "TYPE_MISMATCH", "NIL_POINTER" }, {
+    return Enum({ "UNSUPPORTED_OPERATION", "TYPE_MISMATCH", "NIL_POINTER" }, {
         __call = function(tbl, source, msg)
-            msg = crt .. "[" .. src_color .. FSL.Type.STRING(source) .. crt .. "] " ..
-                    tostring(tbl) .. ": " .. msg_color .. FSL.Type.STRING(msg) .. crt
+            msg = crt .. "[" .. src_color .. Type.STRING(source) .. crt .. "] " ..
+                    tostring(tbl) .. ": " .. msg_color .. Type.STRING(msg) .. crt
             print(msg)
             error(msg)
         end
@@ -194,7 +202,7 @@ FSL.Error = (function()
 end)()
 
 
-
+setfenv(1, fenv) -- Reset environment
 
 
 
