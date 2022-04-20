@@ -295,20 +295,38 @@ function peek(iterable, callback)
 end
 
 
+--[[
+-- Collects an iterator stream into a table
+--
+-- Collect is a terminating stream operation.
+-- The stream is closed and no further stream operations are applicable.
+--
+-- @param iterable [table][function] Stream in which to iterate
+-- @return [table] Elements of the stream
+]]--
+function collect(iterable)
+    local iterator = Type.TABLE:match(iterable) and next or Type.FUNCTION(iterable)
+    local tbl = { }
+    for key, value in iterator do
+        tbl[key] = value end
+    return tbl
+end
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+--[[
+-- Iterates through elements of a stream
+--
+-- For-each is a terminating stream operation.
+-- The stream is closed and no further stream operations are applicable.
+--
+-- @param iterable [table][function] Stream in which to iterate
+-- @param callback [function] Callback for-each function
+-- @return [table] Elements of the stream
+]]--
+function for_each(iterable, callback)
+    Type.FUNCTION(callback)
+    local iterator = Type.TABLE:match(iterable) and next or Type.FUNCTION(iterable)
+    for key, value in iterator do
+        callback(key, value) end
+end
 
 setfenv(1, fenv) -- Reset environment
