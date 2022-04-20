@@ -80,7 +80,6 @@ function readOnlyTable(private, metamethods)
     return setmetatable({}, mt)
 end
 
-
 --[[
 -- Constructs a new enum from a set of values
 --
@@ -174,7 +173,6 @@ Type = (function()
     return Type
 end)()
 
-
 --[[
 -- Error Enum
 --
@@ -189,7 +187,6 @@ end)()
 -- @param msg [string] Msg providing details of the error
 ]]--
 Error = (function()
-    -- /run print("this is \124cFFECBC2Ared and \124cFF00FF00this is green\124r back to red\124r back to white")
     local crt, src_color, msg_color = "\124r", "\124cFFECBC2A", "\124cFF00FF00"
     return Enum({ "UNSUPPORTED_OPERATION", "TYPE_MISMATCH", "NIL_POINTER" }, {
         __call = function(tbl, source, msg)
@@ -201,21 +198,70 @@ Error = (function()
     })
 end)()
 
+--[[
+-- ==========================
+-- ======= Stream API =======
+-- ==========================
+]]--
+
+--[[
+-- Filters an iterable, iterating over a designated subset of elements
+--
+-- @param iterable [table][function] Table or iterator in which to iterate
+-- @param callback [function] Callback filter function
+-- @return [function] iterator
+]]--
+function filter(iterable, callback)
+    Type.FUNCTION(callback)
+    -- Tables must use 'next' while iterators can use themselves.
+    local iterator = type(iterable) == "table" and next or Type.FUNCTION(iterable)
+    local key -- Iterator key parameter cannot be trusted due to key re-mappings
+    return function()
+        local value
+        repeat key, value = iterator(iterable, key)
+        until key == nil or callback(key, value) == true
+        return key, value
+    end, iterable, nil
+end
+
+--[[
+-- Maps an iterable, translating elements into different elements
+--
+-- @param iterable [table][function] Table or iterator in which to iterate
+-- @param callback [function] Callback mapping function
+-- @return [function] iterator
+]]--
+function map(iterable, callback)
+    Type.FUNCTION(callback)
+    -- Tables must use 'next' while iterators can use themselves.
+    local iterator = type(iterable) == "table" and next or Type.FUNCTION(iterable)
+    local key -- Iterator key parameter cannot be trusted due to key re-mappings
+    return function()
+        local value
+        key, value = iterator(iterable, key)
+        if key ~= nil then return callback(key, value) end
+    end, iterable, nil
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 setfenv(1, fenv) -- Reset environment
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
