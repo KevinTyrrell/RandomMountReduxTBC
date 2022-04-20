@@ -209,7 +209,7 @@ end)()
 --
 -- @param iterable [table][function] Table or iterator in which to iterate
 -- @param callback [function] Callback filter function
--- @return [function] iterator
+-- @return [function] Iterator
 ]]--
 function filter(iterable, callback)
     Type.FUNCTION(callback)
@@ -229,7 +229,7 @@ end
 --
 -- @param iterable [table][function] Table or iterator in which to iterate
 -- @param callback [function] Callback mapping function
--- @return [function] iterator
+-- @return [function] Iterator
 ]]--
 function map(iterable, callback)
     Type.FUNCTION(callback)
@@ -243,7 +243,32 @@ function map(iterable, callback)
     end, iterable, nil
 end
 
-
+-- Merges two streams together
+--
+-- The resulting combined stream will have the same
+-- number of elements as the largest of the two streams.
+-- Streams of mismatched sizes can be merged but will partially yield
+-- nil for the callback key/value parameters of the smaller stream.
+--
+-- @param iter1 [table][function] Table or iterator in which to iterate
+-- @param iter2 [table][function] Table or iterator in which to iterate
+-- @param callback [function] Callback mapping function: (k1,v1,k2,v2) --> (key,value)
+-- @return [function] Iterator
+]]--
+function merge(iter1, iter2, callback)
+    Type.FUNCTION(callback)
+    local i1 = type(iter1) == "table" and next or Type.FUNCTION(iter1)
+    local i2 = type(iter2) == "table" and next or Type.FUNCTION(iter2)
+    local k1, k2 -- Iterator key parameter cannot be trusted due to key re-mappings
+    return function(iter)
+        local v1, v2
+        k1, v1 = i1(iter1, k1)
+        k2, v2 = i2(iter2, k2)
+        if k1 ~= nil or k2 ~= nil then
+            return callback(k1, v1, k2, v2)
+        end
+    end, nil, nil
+end
 
 
 
