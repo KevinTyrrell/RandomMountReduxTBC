@@ -29,14 +29,17 @@ FSL.Type = {
     TABLE = setmetatable({}, { __call = function(_, x) return x end }),
     STRING = setmetatable({}, { __call = function(_, x) return x end })
 }
-local Error = {}
+FSL.Error = {
+    UNSUPPORTED_OPERATION = setmetatable({}, { __call = function() end }),
+    TYPE_MISMATCH = setmetatable({}, { __call = function() end }),
+}
 
 -- Helper function -- Basis for read-only tables
 local function readOnlyMetaTable(private)
     return {
         -- Reject any mutations to the read-only table
         __newindex = function()
-            FSL:throw(ADDON_NAME, Error.ILLEGAL_MODIFICATION, "Ready-only table cannot be modified")
+            FSL.Error.UNSUPPORTED_OPERATION(ADDON_NAME, "Ready-only table cannot be modified")
         end,
         -- Redirect lookups to the private table without exposing the table itself
         __index = function(_, index) return private[index] end,
@@ -136,9 +139,13 @@ end
 --
 -- Types of the Lua programming language
 --
+-- Enum constants are as follows:
+-- NIL, STRING, BOOLEAN, NUMBER, FUNCTION, USERDATA, THREAD, TABLE
+--
 -- __call meta-method
 -- Type-checks a value, ensuring it to be of the same type as the Type enum value
--- @param Value [?] Value to be type-checked
+-- @param value [?] Value to be type-checked
+-- @return [?] value
 ]]--
 FSL.Type = (function()
     local Type, private = FSL:Enum({ "NIL", "STRING", "BOOLEAN","NUMBER",
@@ -146,8 +153,8 @@ FSL.Type = (function()
             {
                 __call = function(tbl, value)
                     if type(value) ~= tbl.type then
-                        FSL:throw(ADDON_NAME, Error.TYPE_MISMATCH,
-                                "Received " .. type(value) .. ", Expected: " .. tbl.name) end
+                        FSL.Error.TYPE_MISMATCH(ADDON_NAME,
+                                "Received " .. type(value) .. ", Expected: " .. tbl.type) end
                     return value
                 end
             })
@@ -160,7 +167,31 @@ FSL.Type = (function()
 end)()
 
 
-
+--[[
+-- Error Enum
+--
+-- Defines an error throwing interface
+--
+-- Enum constants are as follows:
+-- UNSUPPORTED_OPERATION, TYPE_MISMATCH, NIL_POINTER
+--
+-- __call meta-method
+-- Throws an error to the chat window and error frame
+-- @param source [string] Source name of the error (addon, weak aura, macro, etc)
+-- @param msg [string] Msg providing details of the error
+]]--
+FSL.Error = (function()
+    -- /run print("this is \124cFFECBC2Ared and \124cFF00FF00this is green\124r back to red\124r back to white")
+    local crt, src_color, msg_color = "\124r", "\124cFFECBC2A", "\124cFF00FF00"
+    return FSL:Enum({ "UNSUPPORTED_OPERATION", "TYPE_MISMATCH", "NIL_POINTER" }, {
+        __call = function(tbl, source, msg)
+            msg = crt .. "[" .. src_color .. FSL.Type.STRING(source) .. crt .. "] " ..
+                    tostring(tbl) .. ": " .. msg_color .. FSL.Type.STRING(msg) .. crt
+            print(msg)
+            error(msg)
+        end
+    })
+end)()
 
 
 
