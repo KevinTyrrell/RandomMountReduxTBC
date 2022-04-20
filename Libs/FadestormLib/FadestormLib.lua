@@ -209,16 +209,15 @@ end)()
 ]]--
 
 --[[
--- Filters an iterable, iterating over a designated subset of elements
+-- Filters an iterable stream, iterating over a designated subset of elements
 --
--- @param iterable [table][function] Table or iterator in which to iterate
+-- @param iterable [table][function] Stream in which to iterate
 -- @param callback [function] Callback filter function
 -- @return [function] Iterator
 ]]--
 function filter(iterable, callback)
     Type.FUNCTION(callback)
-    -- Tables must use 'next' while iterators can use themselves.
-    local iterator = Type.TABLE:match(iterable) and next or  Type.FUNCTION(iterable)
+    local iterator = Type.TABLE:match(iterable) and next or Type.FUNCTION(iterable)
     local key -- Iterator key parameter cannot be trusted due to key re-mappings
     return function()
         local value
@@ -229,15 +228,14 @@ function filter(iterable, callback)
 end
 
 --[[
--- Maps an iterable, translating elements into different elements
+-- Maps an iterable stream, translating elements into different elements
 --
--- @param iterable [table][function] Table or iterator in which to iterate
+-- @param iterable [table][function] Stream in which to iterate
 -- @param callback [function] Callback mapping function
 -- @return [function] Iterator
 ]]--
 function map(iterable, callback)
     Type.FUNCTION(callback)
-    -- Tables must use 'next' while iterators can use themselves.
     local iterator = Type.TABLE:match(iterable) and next or Type.FUNCTION(iterable)
     local key -- Iterator key parameter cannot be trusted due to key re-mappings
     return function()
@@ -248,15 +246,15 @@ function map(iterable, callback)
 end
 
 --[[
--- Merges two streams together
+-- Merges two iterable streams together
 --
 -- The resulting combined stream will have the same
 -- number of elements as the largest of the two streams.
 -- Streams of mismatched sizes can be merged but will partially yield
 -- nil for the callback key/value parameters of the smaller stream.
 --
--- @param iter1 [table][function] Table or iterator in which to iterate
--- @param iter2 [table][function] Table or iterator in which to iterate
+-- @param iter1 [table][function] Stream in which to iterate
+-- @param iter2 [table][function] Stream in which to iterate
 -- @param callback [function] Callback mapping function: (k1,v1,k2,v2) --> (key,value)
 -- @return [function] Iterator
 ]]--
@@ -275,7 +273,26 @@ function merge(iter1, iter2, callback)
     end, nil, nil
 end
 
-
+--[[
+-- Peeks an iterable stream, viewing each element
+--
+-- @param iterable [table][function] Stream in which to iterate
+-- @param callback [function] Callback peeking function
+-- @return [function] Iterator
+]]--
+function peek(iterable, callback)
+    Type.FUNCTION(callback)
+    local iterator = Type.TABLE:match(iterable) and next or Type.FUNCTION(iterable)
+    local key -- Iterator key parameter cannot be trusted due to key re-mappings
+    return function()
+        local value
+        key, value = iterator(iterable, key)
+        if key ~= nil then
+            callback(key, value)
+            return key, value
+        end
+    end, iterable, nil
+end
 
 
 
