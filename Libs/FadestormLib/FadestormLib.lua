@@ -262,15 +262,36 @@ function merge(iter1, iter2, callback)
     Type.FUNCTION(callback)
     local i1 = Type.TABLE:match(iter1) and next or Type.FUNCTION(iter1)
     local i2 = Type.TABLE:match(iter2) and next or Type.FUNCTION(iter2)
-    local k1, k2 -- Iterator key parameter cannot be trusted due to key re-mappings
-    return function()
-        local v1, v2
+    local iterator, k1, v1, k2, v2
+
+    local function yield_left()
+        k1, v1 = i1(iter1, k1)
+        return k1
+    end
+    local function yield_right()
+        k2, v2 = i2(iter2, k2)
+        return k2
+    end
+    iterator = function()
         k1, v1 = i1(iter1, k1)
         k2, v2 = i2(iter2, k2)
-        if k1 ~= nil or k2 ~= nil then
+        if k1 ~= nil and k2 == nil then
+            k2, v2 = nil, nil
+            iterator = yield_left
+        elseif k2 ~= nil and k1 == nil then
+            k1, v1 = nil, nil
+            iterator = yield_right
+            return k2
+        end
+        return k1
+    end
+
+    return function()
+        if iterator() then
             return callback(k1, v1, k2, v2)
         end
-    end, nil, nil
+
+    end
 end
 
 --[[
