@@ -191,7 +191,7 @@ end)()
 -- @param msg [string] Msg providing details of the error
 ]]--
 Error = (function()
-    local crt, src_color, msg_color = "\124r", "\124cFFECBC2A", "\124cFF00FF00"
+    local crt, src_color, msg_color = "\124r", "\124cFFECBC2A", "\124cFFFF0000"
     return Enum({ "UNSUPPORTED_OPERATION", "TYPE_MISMATCH", "NIL_POINTER" }, {
         __call = function(tbl, source, msg)
             msg = crt .. "[" .. src_color .. Type.STRING(source) .. crt .. "] " ..
@@ -266,31 +266,56 @@ function merge(iter1, iter2, callback)
 
     local function yield_left()
         k1, v1 = i1(iter1, k1)
-        return k1
-    end
+        return k1 end
     local function yield_right()
         k2, v2 = i2(iter2, k2)
-        return k2
-    end
+        return k2 end
+    -- Pull elements from both streams, or switch to just one
     iterator = function()
         k1, v1 = i1(iter1, k1)
         k2, v2 = i2(iter2, k2)
         if k1 ~= nil and k2 == nil then
-            k2, v2 = nil, nil
             iterator = yield_left
         elseif k2 ~= nil and k1 == nil then
-            k1, v1 = nil, nil
             iterator = yield_right
-            return k2
+            return k2 -- k1 is nil, return k2 so iteration continues
         end
         return k1
     end
 
     return function()
-        if iterator() then
-            return callback(k1, v1, k2, v2)
-        end
+        if iterator() then -- Callback only if another element exists
+            return callback(k1, v1, k2, v2) end
+    end
+end
 
+--[[
+-- Flattens out a collection of streams into one iterable stream
+--
+-- The resultant stream will contain elements of the passed
+-- tables or iterators in the order of which they are provided.
+-- Empty tables or iterators are disregarded for the output stream.
+-- For example { 5, 4 }, {}, { 3 } --> { 5, 4, 3 }
+--
+-- @param [table][function] Stream(s) in which to iterate (variable arguments)
+-- @return [function] Iterator
+]]--
+function flat_map(...)
+    local arg = Type.TABLE:match(...) and ... or {...} -- Lua 5.1 varargs limitation
+    local ikey, iterable, iterator, key, value = next(arg)
+    -- Table is empty, return a blank iterator
+    if ikey == nil then return function() return nil end end
+    iterator = Type.TABLE:match(iterable) and next or Type.FUNCTION(iterable)
+
+    return function()
+        while true do
+            -- Check for an element inside the nested table(s)
+            key, value = iterator(iterable, key)
+            if key ~= nil then return key, value end
+            -- Check for an additional table to iterate
+            ikey, iterable = next(arg, ikey)
+            if ikey == nil then return nil end
+        end
     end
 end
 
